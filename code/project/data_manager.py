@@ -3,26 +3,76 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pandas import DataFrame
+from sklearn.model_selection import train_test_split
+from category_encoders import TargetEncoder
 
 class DataManager():
 
     def create_flights_dataframe(self, delay_limit: int, csv_path: str) -> DataFrame:
         df = pd.read_csv(csv_path, low_memory=False)
         df['DELAYED'] = np.where(df['ARRIVAL_DELAY'] >= delay_limit,1,0)
+        df = df[df['CANCELLED'] == 0]
+        df = df[df['DIVERTED'] == 0]
         return df
     
+    def create_aux_features(self, filtered_df: DataFrame) -> DataFrame:
+
+        bins = [0, 43200, 64800, 86400] #transformed to seconds
+        labels = ['MORNING', 'AFTERNOON', 'EVENING']
+        filtered_df['PERIOD'] = pd.cut(
+            filtered_df['SCHEDULED_DEPARTURE'], 
+            bins=bins, 
+            labels=labels, 
+            right=False, # ensure 12h (43200) will be AFTERNOON
+            include_lowest=True
+        ).astype(str)
+
+        # North Hemisphere
+        # Winter: Dez(12), Jan(1), Feb(2)
+        # Spring: Mar(3), Apr(4), May(5)
+        # Summer: Jun(6), Jul(7), Ago(8)
+        # Fall: Set(9), Out(10), Nov(11)
+
+        season_map = {
+            12: 'WINTER', 1: 'WINTER', 2: 'WINTER',
+            3: 'SPRING', 4: 'SPRING', 5: 'SPRING',
+            6: 'SUMMER', 7: 'SUMMER', 8: 'SUMMER',
+            9: 'FALL', 10: 'FALL', 11: 'FALL'
+        }
+
+        filtered_df['SEASON'] = filtered_df['MONTH'].map(season_map)
+
+        # EUA holidays:
+        # 1: New Year / MLK Day
+        # 5: Memorial Day
+        # 7: Independence Day
+        # 11: Thanksgiving
+        # 12: Christmas
+
+        holiday_months = [1, 5, 7, 11, 12]
+        filtered_df['HOLIDAY'] = filtered_df['MONTH'].isin(holiday_months).astype(int)
+        
+        return filtered_df
+
     def show_stats(self, df: DataFrame) -> None:
         columns = df.columns.tolist()
         print('\n\n')
+        #print('total data:\n',df.count())
+        print('\n')
         for i in range(len(columns)):
-            print('col: ', columns[i], ' nunique: ', df[columns[i]].nunique(), '    total data: ', df[columns[i]].count(), '  nans: ', df[columns[i]].isna().sum())
+            print('col: ', (20-len(columns[i]))*'-',
+                columns[i],
+                '  nans: ',
+                df[columns[i]].isna().sum(),
+                ' unique values: ',
+                df[columns[i]].nunique())
         print('\n\n')
 
-    def create_df_sample(self, df: DataFrame, percentage: int, wanted_cols: list[str]) -> DataFrame:
+    def create_df_sample(self, df: DataFrame, percentage: float, wanted_cols: list[str]) -> DataFrame:
         filtered_df = df[wanted_cols]
         frac = percentage/100
         df_sample = filtered_df.sample(frac=frac, random_state=42)
-        self.show_stats(df)
+        df_sample = df_sample.dropna()
         return df_sample
     
     def compare(self, df: DataFrame, x: str, y: str) -> None:
@@ -34,11 +84,29 @@ class DataManager():
         plt.grid(linestyle='--', alpha=0.7)
         plt.show()
 
-    def hour_to_sec(self, df: DataFrame, col: str) -> None:
-        data = df[col]
-        hours = data // 100
-        mins = data % 100
-        df[col] = (hours * 3600) + (mins * 60)
+    def hour_to_sec(self, df: DataFrame, cols: list[str]) -> None:
+        for col in cols:
+            data = df[col]
+            hours = data // 100
+            mins = data % 100
+            df[col] = (hours * 3600) + (mins * 60)
 
-    def min_to_sec(self, df: DataFrame, col: str):
-        df[col] = df[col]*60
+    def min_to_sec(self, df: DataFrame, cols: list[str]):
+        for col in cols:
+            df[col] = df[col]*60
+
+    def get_test_split(self, df: DataFrame, target: str) -> list[DataFrame]:
+        features = df.columns.tolist()
+        features.remove(target)  
+        x = df[features]
+        y = df[target]
+
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, random_state=42, stratify=y)
+        
+        cat_df = df.select_dtypes(include=['string'])
+        cat_cols = cat_df.columns.tolist()
+        
+        encoder = TargetEncoder(cols=cat_cols, smoothing=20.0)
+        x_train_encoded = encoder.fit_transform(x_train, y_train)
+        x_test_encoded = encoder.transform(x_test)
+        return [x_train_encoded, x_test_encoded, y_train, y_test]
