@@ -2,7 +2,7 @@ venv
 
 database/airlines.csv
 database/airports.csv
-database/flights.csv
+# database/flights.csv
 database/dicionario_dados_flights.pdf
 
 test.py
