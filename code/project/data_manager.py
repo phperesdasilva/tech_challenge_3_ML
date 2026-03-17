@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from pandas import DataFrame
 from sklearn.model_selection import train_test_split
-from category_encoders import TargetEncoder
+from sklearn.preprocessing import LabelEncoder
 
 class DataManager():
 
@@ -49,6 +49,8 @@ class DataManager():
         # 11: Thanksgiving
         # 12: Christmas
 
+        #comparar quantidade de 1 e 0 na base de dados filtrada
+        #pode ser que isso não seja necessario, testar sem isso
         holiday_months = [1, 5, 7, 11, 12]
         filtered_df['HOLIDAY'] = filtered_df['MONTH'].isin(holiday_months).astype(int)
         
@@ -95,18 +97,38 @@ class DataManager():
         for col in cols:
             df[col] = df[col]*60
 
+    def encode_df(self, df: DataFrame)  -> DataFrame:
+        le = LabelEncoder()
+
+        df = pd.get_dummies(df, columns=['SEASON', 'PERIOD'])
+        df['AIRLINE_COD'] = le.fit_transform(df['AIRLINE'])
+        df['ORIGIN_AIRPORT_COD'] = le.fit_transform(df['ORIGIN_AIRPORT'])
+        df['DESTINATION_AIRPORT_COD'] = le.fit_transform(df['DESTINATION_AIRPORT'])
+        
+        
+        cols_to_remove = ['AIRLINE', 'ORIGIN_AIRPORT', 'DESTINATION_AIRPORT']
+        df = df.drop(columns=cols_to_remove)
+        return df
+    
     def get_test_split(self, df: DataFrame, target: str) -> list[DataFrame]:
+          
         features = df.columns.tolist()
-        features.remove(target)  
+        features.remove(target)
+          
         x = df[features]
         y = df[target]
 
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, random_state=42, stratify=y)
         
-        cat_df = df.select_dtypes(include=['string'])
-        cat_cols = cat_df.columns.tolist()
+        # cat_df = df.select_dtypes(include=['string'])
+        # cat_cols = cat_df.columns.tolist()
         
-        encoder = TargetEncoder(cols=cat_cols, smoothing=20.0)
-        x_train_encoded = encoder.fit_transform(x_train, y_train)
-        x_test_encoded = encoder.transform(x_test)
-        return [x_train_encoded, x_test_encoded, y_train, y_test]
+        #testar one-hot encoding para estação do ano
+        #testar label encoding
+        #com certeza usar label encoding em airline, origin_airport, destination_airport
+        #talvez procurar as companias mais significativas e agrupar por 
+        
+        # encoder = TargetEncoder(cols=cat_cols, smoothing=20.0)
+        # x_train_encoded = encoder.fit_transform(x_train, y_train)
+        # x_test_encoded = encoder.transform(x_test)
+        return [x_train, x_test, y_train, y_test]
