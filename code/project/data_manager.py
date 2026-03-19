@@ -62,7 +62,7 @@ class DataManager():
         #print('total data:\n',df.count())
         print('\n')
         for i in range(len(columns)):
-            print('col: ', (20-len(columns[i]))*'-',
+            print('col: ', (30-len(columns[i]))*'-',
                 columns[i],
                 '  nans: ',
                 df[columns[i]].isna().sum(),
@@ -104,9 +104,9 @@ class DataManager():
         df['AIRLINE_COD'] = le.fit_transform(df['AIRLINE'])
         df['ORIGIN_AIRPORT_COD'] = le.fit_transform(df['ORIGIN_AIRPORT'])
         df['DESTINATION_AIRPORT_COD'] = le.fit_transform(df['DESTINATION_AIRPORT'])
+        df['FLIGHT_NUMBER_COD'] = le.fit_transform(df['FLIGHT_NUMBER'])
         
-        
-        cols_to_remove = ['AIRLINE', 'ORIGIN_AIRPORT', 'DESTINATION_AIRPORT']
+        cols_to_remove = ['AIRLINE', 'ORIGIN_AIRPORT', 'DESTINATION_AIRPORT', 'FLIGHT_NUMBER']
         df = df.drop(columns=cols_to_remove)
         return df
     
